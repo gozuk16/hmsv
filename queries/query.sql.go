@@ -7,14 +7,13 @@ package queries
 
 import (
 	"context"
-	"database/sql"
 )
 
 const insertCpuDownsampledData = `-- name: InsertCpuDownsampledData :exec
 INSERT INTO cpu_downsampled (
-	timestamp
-	,avg_cpu_usage
-	,max_cpu_usage
+	timestamp,
+	avg_cpu_usage,
+	max_cpu_usage
 ) VALUES (
 	?, ?, ?
 )
@@ -33,8 +32,8 @@ func (q *Queries) InsertCpuDownsampledData(ctx context.Context, arg InsertCpuDow
 
 const insertCpuOriginalData = `-- name: InsertCpuOriginalData :exec
 INSERT INTO cpu_original (
-	timestamp
-	,cpu_usage
+	timestamp,
+	cpu_usage
 ) VALUES (
 	?, ?
 )
@@ -52,9 +51,9 @@ func (q *Queries) InsertCpuOriginalData(ctx context.Context, arg InsertCpuOrigin
 
 const selectCpuDownsamplingData = `-- name: SelectCpuDownsamplingData :many
 SELECT
-	strftime('%Y-%m-%d %H:%M:%S', datetime((strftime('%s', timestamp) / ?1) * ?1, 'unixepoch')) AS dstimestamp
-	,AVG(cpu_usage) as ave_cpu_usage
-	,MAX(cpu_usage) as max_cpu_usage
+	CAST(strftime('%Y-%m-%d %H:%M:%S', datetime((strftime('%s', timestamp) / ?1) * ?1, 'unixepoch')) AS TEXT) as dstimestamp,
+	CAST(AVG(cpu_usage) AS REAL) as ave_cpu_usage,
+	CAST(MAX(cpu_usage) AS REAL) as max_cpu_usage
 FROM
 	cpu_original
 GROUP BY dstimestamp
@@ -62,9 +61,9 @@ ORDER BY dstimestamp
 `
 
 type SelectCpuDownsamplingDataRow struct {
-	Dstimestamp interface{}
-	AveCpuUsage sql.NullFloat64
-	MaxCpuUsage interface{}
+	Dstimestamp string
+	AveCpuUsage float64
+	MaxCpuUsage float64
 }
 
 func (q *Queries) SelectCpuDownsamplingData(ctx context.Context, duration string) ([]SelectCpuDownsamplingDataRow, error) {

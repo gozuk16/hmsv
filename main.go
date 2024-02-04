@@ -17,10 +17,10 @@ import (
 )
 
 var (
-	ctx context.Context
 	//go:embed sqlc/schema/schema.sql
 	ddl string
-	//dbconn *sql.DB
+
+	ctx    context.Context
 	dbconn *sql.DB
 	qry    *queries.Queries
 )
@@ -61,42 +61,26 @@ func initializeDB() error {
 
 // insertCpuData CPU情報の登録
 func insertCpuData() error {
-	/*
-		tx, err := dbconn.BeginTx(ctx, nil)
-		//tx, err := dbconn.Begin()
-		if err != nil {
-			log.Println(err)
-			return err
-		}
-		defer func() {
-			tx.Rollback()
-			if recover() != nil {
-				// panicの場合は別にログを出す
-				log.Printf("error!: %v\n", recover())
-			}
-		}()
-
-		//qtx := queries.New(dbconn)
-		qtx := queries.New(dbconn).WithTx(tx)
-	*/
+	// 最初の一回目の計測は正確でないので捨てる
+	gosi.RefreshCpu()
 	for {
-		cpuStat := gosi.Cpu()
-		fmt.Println(cpuStat)
+		time.Sleep(1 * time.Second)
+		gosi.RefreshCpu()
+
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
+		cpuStat := gosi.Cpu()
 		param := queries.InsertCpuOriginalDataParams{
 			Timestamp: timestamp,
-			CpuUsage:  float64(cpuStat.Total),
+			CpuUsage:  cpuStat.Total,
 		}
+		fmt.Println(cpuStat, param)
 
 		err := qry.InsertCpuOriginalData(ctx, param)
 		if err != nil {
 			log.Printf("error!: %v\n", err)
 			return err
 		}
-		time.Sleep(5 * time.Second)
 	}
-
-	//	_, _ = queries.InsertDownsampledData(ctx)
 
 	return nil
 }
@@ -105,18 +89,24 @@ func insertDownSamplingCpuData() error {
 	for {
 		time.Sleep(5 * time.Second)
 
-		getDownsamplingData()
-		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		param := queries.InsertCpuDownsampledDataParams{
-			Timestamp:   timestamp,
-			AvgCpuUsage: 0,
-			MaxCpuUsage: 0,
-		}
-
-		err := qry.InsertCpuDownsampledData(ctx, param)
+		rows, err := getDownsamplingData()
 		if err != nil {
 			log.Printf("error!: %v\n", err)
 			return err
+		}
+		for _, v := range rows {
+			//fmt.Println(i, v)
+			param := queries.InsertCpuDownsampledDataParams{
+				Timestamp:   v.Dstimestamp,
+				AvgCpuUsage: v.AveCpuUsage,
+				MaxCpuUsage: v.MaxCpuUsage,
+			}
+
+			err := qry.InsertCpuDownsampledData(ctx, param)
+			if err != nil {
+				log.Printf("error!: %v\n", err)
+				return err
+			}
 		}
 	}
 
@@ -124,13 +114,16 @@ func insertDownSamplingCpuData() error {
 }
 
 // getDownsamplingData CPU情報を読み込んで指定した間隔（秒）でダウンサンプリングして返す
-func getDownsamplingData() error {
-	results, _ := qry.SelectCpuDownsamplingData(ctx, "60")
-	for i, v := range results {
-		fmt.Println(i, v)
+func getDownsamplingData() ([]queries.SelectCpuDownsamplingDataRow, error) {
+	var results []queries.SelectCpuDownsamplingDataRow
+	var err error
+	results, err = qry.SelectCpuDownsamplingData(ctx, "60")
+	if err != nil {
+		log.Printf("error!: %v\n", err)
+		return results, err
 	}
 
-	return nil
+	return results, nil
 }
 
 func main() {
@@ -143,16 +136,8 @@ func main() {
 	log.Println("initdb success")
 	defer dbconn.Close()
 
-	/*
-		if err := insertCpuData(); err != nil {
-			log.Fatal(err)
-		}
-
-		if err := getDownsamplingData(); err != nil {
-			log.Fatal(err)
-		}
-	*/
 	go insertCpuData()
+	go insertDownSamplingCpuData()
 
 	initializeServer()
 
