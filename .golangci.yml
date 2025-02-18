@@ -1,0 +1,7 @@
+linters:
+  enable-all: true
+run:
+  skip-files:
+    - queries/.*\.go # sqlcの生成ファイルを除外
+  skip-generated: true
+

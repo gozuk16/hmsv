@@ -25,6 +25,7 @@ var (
 	qry    *queries.Queries
 )
 
+// initializeServer echoサーバの初期化と起動
 func initializeServer() error {
 	e := echo.New()
 
@@ -38,6 +39,7 @@ func initializeServer() error {
 	return nil
 }
 
+// hello テスト用のハンドラ
 func hello(c echo.Context) error {
 	return c.String(http.StatusOK, "hello world!")
 }
@@ -85,6 +87,7 @@ func insertCpuData() error {
 	return nil
 }
 
+// insertDownSamplingCpuData ダウンサンプリングしたCPU情報をDBに登録
 func insertDownSamplingCpuData() error {
 	for {
 		time.Sleep(5 * time.Second)
